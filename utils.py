@@ -42,7 +42,6 @@ def fetch_data():
 
         params = {
             "apikey": API_KEY,
-            "countryCode": "US",
             "segmentName": "Music",
             "classificationName": genre,
             "size": PAGE_SIZE
