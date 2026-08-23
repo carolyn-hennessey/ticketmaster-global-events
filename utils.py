@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 import os
 
 import requests
@@ -210,7 +211,10 @@ def write_ticketmaster_json_csv(events):
 
         rows.append(row)
 
-    output_path = "data/ticketmaster_events.csv"
+    now = datetime.now()
+    formatted_date = now.strftime("%Y-%m-%d")
+
+    output_path = f"data/ticketmaster_events_{formatted_date}.csv"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
     if not rows:
