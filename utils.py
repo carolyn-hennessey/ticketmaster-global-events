@@ -1,105 +1,208 @@
-import requests
-import os
 import csv
+import os
+
+import requests
 from dotenv import load_dotenv
-from dateutil.relativedelta import relativedelta
-from datetime import datetime
-
-
 
 load_dotenv()
 
-TICKETMASTER_BASE_URL = 'https://app.ticketmaster.com'
+TICKETMASTER_URL = (
+    "https://app.ticketmaster.com/discovery/v2/events.json"
+)
 API_KEY = os.getenv("TICKETMASTER_API_KEY")
+
+GENRES = [
+    "Pop",
+    "Latin",
+    "R&B",
+    "Hip-Hop/Rap",
+    "Country",
+]
+PAGE_SIZE = 200
+MAX_RESULTS_PER_QUERY = 1000
+
 
 def fetch_data():
     """
-    Fetches Ticketmaster dataset for a specified genre and stores the response in a .json file
+    Fetch U.S. music events from the preceding three months.
+
+    Each genre is queried separately to allow up to 1,000 results per genre.
+    Events are deduplicated by Ticketmaster event ID.
     """
+    if not API_KEY:
+        raise RuntimeError(
+            "TICKETMASTER_API_KEY was not found in the environment."
+        )
 
-    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
-    three_months_ago = datetime.now() - relativedelta(months=3)
-    three_months_ago = three_months_ago.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Dictionary prevents duplicate events across genres
+    unique_events = {}
 
-    query_string = TICKETMASTER_BASE_URL + f"/discovery/v2/events.json?classificationName=music&classificationName=Pop,Latin,R%26B,Hip-Hop%2FRap,Country&startDateTime={three_months_ago}&endDateTime={now}&size=200"
+    for genre in GENRES:
+        print(f"\nFetching genre: {genre}")
 
-    response = requests.get(query_string + "&apikey=" + API_KEY )
+        params = {
+            "apikey": API_KEY,
+            "countryCode": "US",
+            "segmentName": "Music",
+            "classificationName": genre,
+            "size": PAGE_SIZE
+        }
 
-    data = response.json()
+        page_number = 0
+        genre_event_count = 0
+        total_elements = 0
 
-    write_ticketmaster_json_csv(data)
+        while True:
+            params["page"] = page_number
 
+            response = requests.get(
+                TICKETMASTER_URL,
+                params=params,
+                timeout=30,
+            )
+            response.raise_for_status()
 
-def write_ticketmaster_json_csv(json_data):
+            data = response.json()
+            events = data.get("_embedded", {}).get("events", [])
+            page_info = data.get("page", {})
 
-    events = json_data.get("_embedded", {}).get("events", [])
+            total_pages = page_info.get("totalPages", 0)
+            total_elements = page_info.get("totalElements", 0)
 
+            for event in events:
+                event_id = event.get("id")
+
+                if event_id:
+                    unique_events[event_id] = event
+
+            genre_event_count += len(events)
+
+            print(
+                f"  Page {page_number + 1}/{total_pages}: "
+                f"{len(events)} events"
+            )
+
+            page_number += 1
+
+            reached_last_page = page_number >= total_pages
+            reached_api_limit = (
+                page_number * PAGE_SIZE >= MAX_RESULTS_PER_QUERY
+            )
+
+            if reached_last_page or reached_api_limit or not events:
+                break
+
+        print(
+            f"  Retrieved {genre_event_count} records for {genre}."
+        )
+
+        if total_elements > MAX_RESULTS_PER_QUERY:
+            print(
+                f"  Warning: {genre} has {total_elements} matches, "
+                f"but Ticketmaster exposes only "
+                f"{MAX_RESULTS_PER_QUERY} per query."
+            )
+
+    events = list(unique_events.values())
+
+    print(
+        f"\nRetrieved {len(events)} unique events across "
+        f"{len(GENRES)} genres."
+    )
+
+    write_ticketmaster_json_csv(events)
+
+def write_ticketmaster_json_csv(events):
+    """Flatten Ticketmaster event records and save them as CSV."""
     rows = []
 
     for event in events:
-        # Select the classification belonging to the Music segment
         music_classification = next(
             (
-                item
-                for item in event.get("classifications", [])
-                if item.get("segment", {}).get("name") == "Music"
+                classification
+                for classification in event.get("classifications", [])
+                if (
+                    classification
+                    .get("segment", {})
+                    .get("name", "")
+                    .casefold()
+                    == "music"
+                )
             ),
             {},
         )
 
-        # An event normally has one venue
         venues = event.get("_embedded", {}).get("venues", [])
         venue = venues[0] if venues else {}
 
-        # Combine multiple artists/attractions into one CSV cell
-        attractions = event.get("_embedded", {}).get("attractions", [])
+        attractions = (
+            event.get("_embedded", {}).get("attractions", [])
+        )
         artist_names = "; ".join(
             attraction.get("name", "")
             for attraction in attractions
             if attraction.get("name")
         )
 
-        # Use the first price range when one exists
         price_ranges = event.get("priceRanges", [])
         price = price_ranges[0] if price_ranges else {}
 
-        # Find the largest 16:9 image
         images = [
             image
             for image in event.get("images", [])
             if image.get("ratio") == "16_9"
         ]
-        image = max(images, key=lambda x: x.get("width", 0), default={})
+        image = max(
+            images,
+            key=lambda item: item.get("width", 0),
+            default={},
+        )
+
+        event_dates = event.get("dates", {})
+        start = event_dates.get("start", {})
+        status = event_dates.get("status", {})
+
+        state = venue.get("state", {})
+        country = venue.get("country", {})
+        location = venue.get("location", {})
 
         row = {
             "event_id": event.get("id", ""),
             "event_name": event.get("name", ""),
             "event_url": event.get("url", ""),
-            "local_date": event.get("dates", {}).get("start", {}).get(
-                "localDate", ""
+            "local_date": start.get("localDate", ""),
+            "local_time": start.get("localTime", ""),
+            "utc_datetime": start.get("dateTime", ""),
+            "timezone": event_dates.get("timezone", ""),
+            "status": status.get("code", ""),
+            "segment": (
+                music_classification
+                .get("segment", {})
+                .get("name", "")
             ),
-            "local_time": event.get("dates", {}).get("start", {}).get(
-                "localTime", ""
+            "genre": (
+                music_classification
+                .get("genre", {})
+                .get("name", "")
             ),
-            "utc_datetime": event.get("dates", {}).get("start", {}).get(
-                "dateTime", ""
+            "subgenre": (
+                music_classification
+                .get("subGenre", {})
+                .get("name", "")
             ),
-            "timezone": event.get("dates", {}).get("timezone", ""),
-            "status": event.get("dates", {}).get("status", {}).get("code", ""),
-            "segment": music_classification.get("segment", {}).get("name", ""),
-            "genre": music_classification.get("genre", {}).get("name", ""),
-            "subgenre": music_classification.get("subGenre", {}).get("name", ""),
             "artists": artist_names,
             "venue_name": venue.get("name", ""),
             "venue_id": venue.get("id", ""),
-            "address": venue.get("address", {}).get("line1", ""),
+            "address": (
+                venue.get("address", {}).get("line1", "")
+            ),
             "city": venue.get("city", {}).get("name", ""),
-            "state": venue.get("state", {}).get("name", ""),
-            "state_code": venue.get("state", {}).get("stateCode", ""),
+            "state": state.get("name", ""),
+            "state_code": state.get("stateCode", ""),
             "postal_code": venue.get("postalCode", ""),
-            "country_code": venue.get("country", {}).get("countryCode", ""),
-            "latitude": venue.get("location", {}).get("latitude", ""),
-            "longitude": venue.get("location", {}).get("longitude", ""),
+            "country_code": country.get("countryCode", ""),
+            "latitude": location.get("latitude", ""),
+            "longitude": location.get("longitude", ""),
             "min_price": price.get("min", ""),
             "max_price": price.get("max", ""),
             "currency": price.get("currency", ""),
@@ -108,12 +211,24 @@ def write_ticketmaster_json_csv(json_data):
 
         rows.append(row)
 
-    if rows:
-        with open("data/ticketmaster_events.csv", "w", newline="", encoding="utf-8") as file:
-            writer = csv.DictWriter(file, fieldnames=rows[0].keys())
-            writer.writeheader()
-            writer.writerows(rows)
+    output_path = "data/ticketmaster_events.csv"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        print(f"Saved {len(rows)} events to ticketmaster_events.csv")
-    else:
+    if not rows:
         print("The API response contained no events.")
+        return
+
+    with open(
+        output_path,
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as file:
+        writer = csv.DictWriter(
+            file,
+            fieldnames=rows[0].keys(),
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+    print(f"Saved {len(rows)} events to {output_path}")
