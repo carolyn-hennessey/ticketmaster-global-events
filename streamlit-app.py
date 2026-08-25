@@ -1,11 +1,8 @@
-import requests
 import os
 import streamlit as st
 import utils
 import pandas as pd
 import plotly.express as px
-from streamlit_folium import st_folium as sf
-from dotenv import load_dotenv
 from datetime import datetime
 from pathlib import Path
 from dataframe_utils import (
@@ -14,11 +11,6 @@ from dataframe_utils import (
     make_state_summary,
     make_state_tables,
 )
-
-
-# Load your API key from .env file
-load_dotenv()
-API_KEY = os.getenv("TICKETMASTER_API_KEY")
 
 def get_event(city, genre, start_date, end_date):
     """
