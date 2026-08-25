@@ -17,20 +17,21 @@ def get_event(city, genre, start_date, end_date):
     Fetch event information for the given city and print it nicely.
     """
     #Referencing fetch data function in utils.py to pull API data
-    events = utils.fetch_data(city, genre)
+    events = utils.fetch_data(city, genre, False)
 
     
     match_found = False
     #all events go through for loop to return relevant event information for each
     for event in events:
         event_date = event["dates"]["start"]["localDate"]
-        event_id = event["id"]
 
         #if event date falls within range selected by user, results will be returned
         if event_date >= start_date and event_date <= end_date:
             venue = event["_embedded"]["venues"][0]["name"]
             genre = event["classifications"][0]["segment"]["name"]
+            event_name = event["name"]
             st.write("Date: ", event_date)
+            st.write("Event: ", event_name)
             st.write("Genre: ", genre)
             st.write("Venue: ", venue)
             st.write("---")
@@ -58,7 +59,17 @@ with search_tab:
 
 with snapshot_tab:
     st.header("Daily snapshot of interesting ticketmaster concerts across U.S. including Pop, Latin, R&B, Hip-Hop/Rap & Country")
-    today_file = Path(f"data/ticketmaster_events_{datetime.now():%Y-%m-%d}.csv")
+
+    date = datetime.now()
+    formatted_date = date.strftime("%Y-%m-%d")
+    today_file = Path(f"data/ticketmaster_events_{formatted_date}.csv")
+
+    if today_file.is_file():
+        print("Today's data file already exists")
+    else:
+        print("No data file for today exists, retrieving data from Ticketmaster")
+        utils.fetch_data(None, None, True)
+
     if today_file.exists():
         st.success("Today's data is available.")
 
