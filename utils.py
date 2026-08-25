@@ -1,11 +1,10 @@
 import csv
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 
 import requests
 import streamlit as st
-from dateutil.relativedelta import relativedelta
 from dotenv import load_dotenv
 
 
@@ -30,7 +29,7 @@ MAX_RETRIES = 6
 
 
 def get_api_key():
-    """Load the API key from the environment or Streamlit secrets."""
+    """Read the Ticketmaster API key."""
     api_key = os.getenv("TICKETMASTER_API_KEY")
 
     if api_key:
@@ -43,7 +42,7 @@ def get_api_key():
 
 
 def ticketmaster_get(session, params):
-    """Make a Ticketmaster request with rate limiting and retries."""
+    """Send a rate-limited Ticketmaster request with retries."""
     for attempt in range(MAX_RETRIES):
         time.sleep(REQUEST_INTERVAL_SECONDS)
 
@@ -88,9 +87,11 @@ def fetch_data(
     is_daily_fetch=False,
 ):
     """
-    Fetch U.S. music events from the preceding three months.
+    Fetch the maximum accessible number of U.S. music events.
 
-    Genres are queried separately, and events are deduplicated by ID.
+    Ticketmaster exposes up to 1,000 results per query. Genres are
+    queried separately to allow up to 5,000 records before events
+    appearing in multiple genres are deduplicated.
     """
     api_key = get_api_key()
 
@@ -98,9 +99,6 @@ def fetch_data(
         raise RuntimeError(
             "TICKETMASTER_API_KEY was not found."
         )
-
-    end_datetime = datetime.now(timezone.utc)
-    start_datetime = end_datetime - relativedelta(months=3)
 
     genres = [target_genre] if target_genre else GENRES
     unique_events = {}
@@ -114,18 +112,12 @@ def fetch_data(
                 "countryCode": "US",
                 "segmentName": "Music",
                 "classificationName": genre,
-                "startDateTime": start_datetime.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                ),
-                "endDateTime": end_datetime.strftime(
-                    "%Y-%m-%dT%H:%M:%SZ"
-                ),
                 "size": PAGE_SIZE,
                 "sort": "date,asc",
             }
 
             if city:
-                params["city"] = city
+                params["city"] = city.strip()
 
             page_number = 0
             genre_event_count = 0
@@ -134,11 +126,15 @@ def fetch_data(
             while True:
                 params["page"] = page_number
 
-                response = ticketmaster_get(session, params)
+                response = ticketmaster_get(
+                    session,
+                    params,
+                )
                 data = response.json()
 
                 events = (
-                    data.get("_embedded", {}).get("events", [])
+                    data.get("_embedded", {})
+                    .get("events", [])
                 )
                 page_info = data.get("page", {})
 
@@ -147,6 +143,11 @@ def fetch_data(
                     "totalElements",
                     0,
                 )
+
+                if not events:
+                    if page_number == 0:
+                        print("  No events found.")
+                    break
 
                 for event in events:
                     event_id = event.get("id")
@@ -169,11 +170,7 @@ def fetch_data(
                     >= MAX_RESULTS_PER_QUERY
                 )
 
-                if (
-                    reached_last_page
-                    or reached_api_limit
-                    or not events
-                ):
+                if reached_last_page or reached_api_limit:
                     break
 
             print(
@@ -190,7 +187,10 @@ def fetch_data(
 
     events = list(unique_events.values())
 
-    print(f"\nRetrieved {len(events)} unique events.")
+    print(
+        f"\nRetrieved {len(events)} unique events across "
+        f"{len(genres)} genre query/queries."
+    )
 
     if is_daily_fetch:
         write_ticketmaster_json_csv(events)
@@ -221,11 +221,14 @@ def write_ticketmaster_json_csv(events):
             {},
         )
 
-        venues = event.get("_embedded", {}).get("venues", [])
+        venues = (
+            event.get("_embedded", {}).get("venues", [])
+        )
         venue = venues[0] if venues else {}
 
         attractions = (
-            event.get("_embedded", {}).get("attractions", [])
+            event.get("_embedded", {})
+            .get("attractions", [])
         )
         artist_names = "; ".join(
             attraction.get("name", "")
@@ -299,9 +302,9 @@ def write_ticketmaster_json_csv(events):
         print("The API response contained no events.")
         return None
 
-    date_string = datetime.now().strftime("%Y-%m-%d")
+    formatted_date = datetime.now().strftime("%Y-%m-%d")
     output_path = (
-        f"data/ticketmaster_events_{date_string}.csv"
+        f"data/ticketmaster_events_{formatted_date}.csv"
     )
 
     os.makedirs("data", exist_ok=True)
