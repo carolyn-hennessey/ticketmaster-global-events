@@ -5,6 +5,8 @@ import os
 import requests
 from dotenv import load_dotenv
 
+import pandas as pd
+
 load_dotenv()
 
 TICKETMASTER_URL = (
@@ -23,7 +25,7 @@ PAGE_SIZE = 200
 MAX_RESULTS_PER_QUERY = 1000
 
 
-def fetch_data():
+def fetch_data(city, genre):
     """
     Fetch U.S. music events from the preceding three months.
 
@@ -38,21 +40,22 @@ def fetch_data():
     # Dictionary prevents duplicate events across genres
     unique_events = {}
 
-    for genre in GENRES:
-        print(f"\nFetching genre: {genre}")
+    # for genre in GENRES:
+    #     print(f"\nFetching genre: {genre}")
 
-        params = {
+    params = {
             "apikey": API_KEY,
             "segmentName": "Music",
             "classificationName": genre,
+            "city": city,
             "size": PAGE_SIZE
         }
 
-        page_number = 0
-        genre_event_count = 0
-        total_elements = 0
+    page_number = 0
+    genre_event_count = 0
+    total_elements = 0
 
-        while True:
+    while True:
             params["page"] = page_number
 
             response = requests.get(
@@ -92,11 +95,11 @@ def fetch_data():
             if reached_last_page or reached_api_limit or not events:
                 break
 
-        print(
+    print(
             f"  Retrieved {genre_event_count} records for {genre}."
         )
 
-        if total_elements > MAX_RESULTS_PER_QUERY:
+    if total_elements > MAX_RESULTS_PER_QUERY:
             print(
                 f"  Warning: {genre} has {total_elements} matches, "
                 f"but Ticketmaster exposes only "
@@ -104,13 +107,13 @@ def fetch_data():
             )
 
     events = list(unique_events.values())
+    return events
+    # print(
+    #     f"\nRetrieved {len(events)} unique events across "
+    #     f"{len(GENRES)} genres."
+    # )
 
-    print(
-        f"\nRetrieved {len(events)} unique events across "
-        f"{len(GENRES)} genres."
-    )
-
-    write_ticketmaster_json_csv(events)
+    # write_ticketmaster_json_csv(events)
 
 def write_ticketmaster_json_csv(events):
     """Flatten Ticketmaster event records and save them as CSV."""
