@@ -5,8 +5,11 @@ import pandas as pd
 import plotly.express as px
 import requests
 import streamlit as st
+import os
 
 import utils
+from dotenv import load_dotenv
+from openai import OpenAI
 from dataframe_utils import (
     count_events,
     make_state_summary,
@@ -19,6 +22,24 @@ st.set_page_config(
     layout="wide",
 )
 
+# Load environment variables from .env file
+load_dotenv()
+
+# Initialize the OpenAI client
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")  # Pull the API key from environment variables
+)
+
+#Creating function to initiate chatbot functionality
+def chatbot(genre_choice):
+    response = client.chat.completions.create(
+    model="gpt-5.2",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant here to spice up the event search."},
+        {"role": "user",   "content": f"Write a lyric inspired by the {genre_choice} genre"}
+        ]
+    )
+    st.write(response.choices[0].message.content)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_search_events(city, genre):
@@ -154,6 +175,7 @@ def display_events(events, start_date, end_date):
                         "View on Ticketmaster",
                         event_url,
                     )
+
 
 
 def display_snapshot(today_file):
@@ -309,6 +331,8 @@ with search_tab:
                     start_date,
                     end_date,
                 )
+
+                chatbot(genre_choice)
 
             except requests.HTTPError as error:
                 st.error(
