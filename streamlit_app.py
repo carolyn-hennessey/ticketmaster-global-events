@@ -25,21 +25,20 @@ st.set_page_config(
 # Load environment variables from .env file
 load_dotenv()
 
-# Initialize the OpenAI client
+# Initialize the Duke AI Gateway client
 client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")  # Pull the API key from environment variables
+    api_key=os.getenv("LITELLM_TOKEN"),
+    base_url="https://litellm.oit.duke.edu/v1",
 )
 
 #Creating function to initiate chatbot functionality
 def chatbot(genre_choice):
-    response = client.chat.completions.create(
-    model="gpt-5.2",
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant here to spice up the event search."},
-        {"role": "user",   "content": f"Write a lyric inspired by the {genre_choice} genre"}
-        ]
+    response = client.responses.create(
+        model="gpt-5.2",
+        instructions="You are a helpful assistant here to spice up the event search.",
+        input=f"Write a lyric inspired by the {genre_choice} genre",
     )
-    st.write(response.choices[0].message.content)
+    st.write(response.output[0].content[0].text)
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_search_events(city, genre):
