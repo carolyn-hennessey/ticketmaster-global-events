@@ -64,3 +64,5 @@ This fetches todays events and saves them. It skips the download if todays file 
 
 ## Additional Github Information
 Users ishikabhatia26 and ishikabhatia12 are tied together.
+
+PR #5 was authored and submitted by [@w-aquis-duke](https://github.com/w-aquis-duke). The contribution is documented in the [merged pull request](https://github.com/carolyn-hennessey/ticketmaster-global-events/pull/5). GitHub’s contributor graph may not display it under the account because the original commit used an unlinked local Git identity.
