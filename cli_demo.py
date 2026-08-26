@@ -9,7 +9,7 @@ if __name__ == "__main__":
     genre = input("Enter a genre: Pop, Latin, R&B, Hip-Hop/Rap, Country: ")
     start_date = date.fromisoformat(input("Enter a start date for the search (YYYY-MM-DD): "))
     end_date = date.fromisoformat(input("Enter an end date for the search (YYYY-MM-DD): "))
-
+    
     events = fetch_data(
         city = city,
         target_genre = genre,
@@ -109,16 +109,3 @@ if __name__ == "__main__":
                 )
 
             print("------------")
-
-
-
-# if __name__ == "__main__":
-#     now = datetime.now()
-#     formatted_date = now.strftime("%Y-%m-%d")
-#     csv_file = Path(f"data/ticketmaster_events_{formatted_date}.csv")
-
-#     if csv_file.is_file():
-#         print("Today's data file already exists")
-#     else:
-#         print("No data file for today exists, retrieving data from Ticketmaster")
-#         fetch_data(is_daily_fetch=True)

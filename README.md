@@ -56,7 +56,7 @@ streamlit run streamlit-app.py
 ## How to run the CLI
 
 ```bash
-python cli_demo.py
+streamlit run cli_demo.py
 ```
 
 This fetches todays events and saves them. It skips the download if todays file already exists.
