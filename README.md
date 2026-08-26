@@ -2,7 +2,7 @@
 
 A streamlit app for exploring live music events from ticketmaster. It searches US events by city, genre, date or view a daily snapshot of events by state and genre.
 
-**Live app:** https://ticketmaster-global-events-gsqwgc5oxusilha9vj82xa.streamlit.app/
+**Live app:** https://mymaevyvcwh2rduse7mqqu.streamlit.app/
 
 ![Daily Snapshot](music-snapshot.png)
 
