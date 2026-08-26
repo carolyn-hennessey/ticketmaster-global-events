@@ -60,3 +60,7 @@ python cli_demo.py
 ```
 
 This fetches todays events and saves them. It skips the download if todays file already exists.
+
+
+## Additional Github Information
+Users ishikabhatia26 and ishikabhatia12 are tied together.
